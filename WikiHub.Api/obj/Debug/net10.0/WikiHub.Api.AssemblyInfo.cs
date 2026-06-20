@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("WikiHub.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+da16598b7ad6eda048cfda9047415cf55b24f0c5")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2c7738e08d048f803a4e66323cf97bfb0f1a4ae1")]
 [assembly: System.Reflection.AssemblyProductAttribute("WikiHub.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("WikiHub.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

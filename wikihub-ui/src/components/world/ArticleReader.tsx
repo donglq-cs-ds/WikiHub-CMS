@@ -14,7 +14,7 @@ import { createCustomMention } from './CustomMentionExtension';
 import { CustomInfoBox } from './CustomInfoBoxExtension';
 import { CustomImage } from './CustomImageExtension';
 import { CustomTable } from './CustomTableExtension';
-import tippy, { delegate } from 'tippy.js';
+import tippy from 'tippy.js';
 import 'tippy.js/dist/tippy.css';
 import { ArrowLeft, Pencil, ListTree } from 'lucide-react';
 const API_URL = import.meta.env.VITE_API_URL;
@@ -112,76 +112,83 @@ export default function ArticleReader({ articleId, worldId, onBack, onEdit }: Pr
     // 2. TỔNG HỢP: HOVER PREVIEW CHO CẢ MENTION VÀ LINK (WIKIPEDIA STYLE)
     // ========================================================================
     useEffect(() => {
-        if (!editor) return;
+    if (!editor) return;
 
-        const instance = delegate(editor.view.dom,{
-            // Target: Gộp cả class "mention" và thẻ "a" (link)
-            target: '.mention, a', 
+    const container = editor.view.dom;
+    let currentTip: any = null;
+
+    const handleMouseOver = async (e: MouseEvent) => {
+        const target = (e.target as HTMLElement).closest('.mention, a[href]') as HTMLElement | null;
+        if (!target) return;
+
+        // Nếu đã có tip cho đúng element này rồi thì bỏ qua
+        if (currentTip?._tippy?.reference === target) return;
+        currentTip?._tippy?.destroy();
+
+        const href = target.getAttribute('href');
+        const mentionId = target.getAttribute('data-id');
+        const articleId = mentionId || (href?.includes('/articles/') ? href.split('/articles/')[1] : null);
+
+        if (!articleId) return;
+
+        const tip = tippy(target, {
             placement: 'top',
             interactive: true,
             allowHTML: true,
             delay: [300, 100],
             theme: 'light-border',
-            content: '<div class="text-xs text-gray-400 p-2 font-semibold">Đang tải...</div>',
-            
-            onShow: async (tip) => {
-                // 1. Xác định ID: Mention có data-id, Link có href (/articles/GUID)
-                const href = tip.reference.getAttribute('href');
-                const mentionId = tip.reference.getAttribute('data-id');
-                
-                // Trích xuất GUID từ href nếu không phải là mention
-                const articleId = mentionId || (href?.includes('/articles/') ? href.split('/articles/')[1] : null);
-                
-                if (!articleId) {
-                    // Nếu là link ngoài (không phải bài trong Wiki) thì không hiện preview
-                    return false; 
-                }
-
+            content: '<div style="padding:8px; font-size:12px; color:#9ca3af;">Đang tải...</div>',
+            onShow: async (instance) => {
                 try {
                     const res = await fetch(`${API_URL}/api/Articles/${articleId}`);
                     if (!res.ok) throw new Error('Not found');
                     const article = await res.json();
 
-                    // 2. Thuật toán "Mổ xẻ" HTML để bóc tách đoạn Mô Tả
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(article.content || '', 'text/html');
-                    
+
                     let moTaSnippet = article.description || 'Chưa có mô tả ngắn.';
-                    
-                    // Tìm thẻ H2 "Mô tả"
                     const h2Tags = Array.from(doc.querySelectorAll('h2'));
                     const moTaH2 = h2Tags.find(h => h.textContent?.toLowerCase().includes('mô tả'));
-                    
                     if (moTaH2 && moTaH2.nextElementSibling?.tagName === 'P') {
                         const fullText = moTaH2.nextElementSibling.textContent || '';
                         moTaSnippet = fullText.length > 150 ? fullText.substring(0, 150) + '...' : fullText;
                     }
 
-                    // 3. Render giao diện thẻ Tooltip (dùng chung cho cả link và mention)
-                    const imageUrl = article.imagePath ? `${API_URL}${article.imagePath}` : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=100&auto=format&fit=crop';
-                    
-                    tip.setContent(`
-                        <div class="flex flex-col gap-2.5 p-1.5 w-64 text-left font-sans bg-white shadow-xl">
-                            <div class="flex items-start gap-3">
-                                <img src="${imageUrl}" class="w-12 h-12 object-cover rounded-lg shrink-0 border border-gray-200" />
-                                <div class="flex-1 min-w-0 pt-0.5">
-                                    <div class="font-black text-[14px] text-gray-800 truncate leading-tight">${article.title}</div>
-                                    <div class="text-[10px] text-blue-600 font-bold tracking-wider uppercase mt-1 bg-blue-50 inline-block px-2 py-0.5 rounded-md">${article.type}</div>
+                    const imageUrl = article.imagePath
+                        ? `${API_URL}${article.imagePath}`
+                        : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=100&auto=format&fit=crop';
+
+                    instance.setContent(`
+                        <div style="display:flex; flex-direction:column; gap:10px; padding:6px; width:256px; font-family:sans-serif;">
+                            <div style="display:flex; align-items:flex-start; gap:12px;">
+                                <img src="${imageUrl}" style="width:48px; height:48px; object-fit:cover; border-radius:8px; border:1px solid #e5e7eb; flex-shrink:0;" />
+                                <div style="flex:1; min-width:0; padding-top:2px;">
+                                    <div style="font-weight:700; font-size:14px; color:#111827; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${article.title}</div>
+                                    <div style="font-size:10px; color:#2563eb; font-weight:600; margin-top:4px; background:#eff6ff; display:inline-block; padding:2px 8px; border-radius:4px;">${article.type}</div>
                                 </div>
                             </div>
-                            <div class="text-[12px] text-gray-600 leading-relaxed border-t border-gray-100 pt-2.5 line-clamp-3">
+                            <div style="font-size:12px; color:#4b5563; line-height:1.6; border-top:1px solid #f3f4f6; padding-top:10px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;">
                                 ${moTaSnippet}
                             </div>
                         </div>
                     `);
-                } catch (error) {
-                    tip.setContent('<div class="text-xs text-red-500 p-2 font-bold">Không tìm thấy bài viết!</div>');
+                } catch {
+                    instance.setContent('<div style="font-size:12px; color:#ef4444; padding:8px; font-weight:600;">Không tìm thấy bài viết!</div>');
                 }
-            }
+            },
         });
 
-        return () => instance.destroy();
-    }, [articleId, editor]);
+        currentTip = target;
+        (tip as any).show();
+    };
+
+    container.addEventListener('mouseover', handleMouseOver);
+
+    return () => {
+        container.removeEventListener('mouseover', handleMouseOver);
+    };
+}, [articleId, editor]);
 
     if (!editor) return null;
 
