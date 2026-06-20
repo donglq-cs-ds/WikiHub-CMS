@@ -19,7 +19,7 @@ import {
     ArrowLeft, Save, Undo2, Redo2, Bold, Italic, Strikethrough, Underline as UnderlineIcon,
     Heading1, Heading2, Heading3, AlignLeft, AlignCenter, AlignRight,
     List, ListOrdered, Quote, Link2, Image as ImageIcon, Plus, LayoutTemplate, Grid,
-    Sigma, Layout, Minus, CloudCheck, Eraser, X, UploadCloud, Link as LinkIcon, ListTree 
+    Sigma, Layout, Minus, CloudCheck, Eraser, X, UploadCloud, Link as LinkIcon, ListTree, Search
 } from 'lucide-react';
 
 interface Props {
@@ -29,6 +29,7 @@ interface Props {
 }
 
 export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
+    const API_URL = import.meta.env.VITE_API_URL; // Dùng biến môi trường
     const [isInsertOpen, setIsInsertOpen] = useState(false);
 
     // State quản lý Modal Hình Ảnh
@@ -70,8 +71,14 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
         editor.commands.scrollIntoView();
         setIsTocOpen(false);
     };
+
     // TRẠNG THÁI LƯU BÀI VIẾT
     const [isSaving, setIsSaving] = useState(false);
+
+    // TRẠNG THÁI QUẢN LÝ TEMPLATE
+    const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+    const [templateSearch, setTemplateSearch] = useState('');
+    const [dbTemplates, setDbTemplates] = useState<any[]>([]);
 
     const editor = useEditor({
         extensions: [
@@ -102,12 +109,16 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
     useEffect(() => {
         const fetchArticleData = async () => {
             try {
-                const res = await fetch(`http://localhost:5213/api/Articles/${articleId}`);
+                const res = await fetch(`${API_URL}/api/Articles/${articleId}`);
                 if (res.ok) {
                     const data = await res.json();
                     setTitle(data.title);
                     if (editor && data.content) {
-                        editor.commands.setContent(data.content);
+                        try {
+                            editor.commands.setContent(JSON.parse(data.content));
+                        } catch {
+                            editor.commands.setContent(data.content); 
+                        }
                     }
                 } else {
                     setTitle('Lỗi: Không tìm thấy bài viết');
@@ -127,24 +138,21 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
     const handleSave = async () => {
         if (!editor) return;
         setIsSaving(true);
-
         try {
-            const htmlContent = editor.getHTML(); // Rút trích HTML từ Tiptap
+            const jsonContent = editor.getJSON();
 
-            const response = await fetch(`http://localhost:5213/api/Articles/${articleId}`, {
+            const response = await fetch(`${API_URL}/api/Articles/${articleId}`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     id: articleId,
                     title: title,
-                    content: htmlContent
+                    content: JSON.stringify(jsonContent)
                 })
             });
 
             if (response.ok) {
-                alert('Lưu bài viết thành công!');
+                console.log('Lưu bài viết thành công!');
             } else {
                 alert('Lỗi khi lưu bài viết!');
             }
@@ -196,18 +204,17 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
         else if (imageTab === 'upload' && fileInputRef.current?.files?.[0]) {
             const file = fileInputRef.current.files[0];
             const formData = new FormData();
-            formData.append('ImageFile', file); // Gửi file xuống Backend
+            formData.append('ImageFile', file);
 
             try {
-                // API Upload Ảnh xuống C#
-                const res = await fetch(`${import.meta.env.VITE_API_URL}/api/Articles/upload-image`, {
+                const res = await fetch(`${API_URL}/api/Articles/upload-image`, {
                     method: 'POST',
                     body: formData
                 });
 
                 if (res.ok) {
                     const data = await res.json();
-                    const realUrl = `${import.meta.env.VITE_API_URL}${data.url}`; // Lấy URL thật Server trả về
+                    const realUrl = `${API_URL}${data.url}`;
                     editor?.chain().focus().insertContent({ type: 'customImage', attrs: { src: realUrl } }).run();
                 } else {
                     alert('Lỗi tải ảnh lên Server!');
@@ -221,32 +228,37 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
             setImageUrl('');
         }
     };
-    
-// AUTO-SAVE NGẦM (DEBOUNCE 2 GIÂY)
+
+    // KHI MỞ MODAL CHÈN MẪU -> KÉO DANH SÁCH TEMPLATE TỪ BẢNG ARTICLES VỀ
+    useEffect(() => {
+        if (isTemplateModalOpen) {
+            // Truyền thêm worldId để API không báo lỗi thiếu tham số
+            fetch(`${API_URL}/api/Articles?worldId=${worldId}&type=Template`)
+                .then(res => res.json())
+                .then(data => setDbTemplates(data))
+                .catch(err => console.error("Lỗi tải Template:", err));
+        }
+    }, [isTemplateModalOpen]);
+
+    // AUTO-SAVE NGẦM (DEBOUNCE 2 GIÂY)
     useEffect(() => {
         if (!editor) return;
 
-        // Bắt sự kiện mỗi khi nội dung Tiptap thay đổi
         const handleUpdate = () => {
-            // Xóa bộ đếm cũ nếu người dùng vẫn đang gõ liên tục
-            clearTimeout(window.autoSaveTimer); 
-            
-            // Đặt bộ đếm mới 2 giây
+            clearTimeout(window.autoSaveTimer);
             window.autoSaveTimer = setTimeout(() => {
-                handleSave(); // Gọi hàm lưu thật của ông
-                console.log("Đã tự động lưu ngầm!");
+                handleSave();
             }, 2000);
         };
 
         editor.on('update', handleUpdate);
 
-        // Cleanup
         return () => {
             editor.off('update', handleUpdate);
             clearTimeout(window.autoSaveTimer);
         };
-    }, [editor, title, description]); // Nhớ đưa các state cần thiết vào mảng này
-    
+    }, [editor, title]);
+
     if (!editor) return null;
 
     return (
@@ -258,19 +270,19 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
                     <button onClick={onBack} className="p-2 bg-gray-50 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                         <ArrowLeft size={20} />
                     </button>
-                    
-                    <input 
-                        type="text" 
-                        value={title} 
-                        onChange={(e) => setTitle(e.target.value)} 
-                        className="text-xl font-black text-gray-800 border-none outline-none bg-transparent placeholder-gray-300 focus:ring-0 flex-1 min-w-0 truncate max-w-sm" 
-                        placeholder="Tên bài viết..." 
+
+                    <input
+                        type="text"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        className="text-xl font-black text-gray-800 border-none outline-none bg-transparent placeholder-gray-300 focus:ring-0 flex-1 min-w-0 truncate max-w-sm"
+                        placeholder="Tên bài viết..."
                         title={title}
                     />
 
                     {/* NÚT MỤC LỤC (TOC) */}
                     <div className="relative">
-                        <button 
+                        <button
                             onClick={generateToc}
                             className={`p-1.5 rounded-lg transition-colors flex items-center gap-2 ${isTocOpen ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'}`}
                             title="Mục lục bài viết"
@@ -289,7 +301,7 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
                                         <div className="p-4 text-center text-sm text-gray-400">Chưa có tiêu đề nào.</div>
                                     ) : (
                                         tocItems.map((item, idx) => (
-                                            <button 
+                                            <button
                                                 key={idx}
                                                 onClick={() => scrollToHeading(item.pos)}
                                                 className="w-full text-left px-3 py-1.5 hover:bg-blue-50 rounded-lg text-sm text-gray-600 hover:text-blue-700 transition-colors truncate"
@@ -398,7 +410,7 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
 
                             <button onClick={() => { setIsInsertOpen(false); setIsImageModalOpen(true); }} className="flex items-center gap-2.5 px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 hover:text-white text-left"><ImageIcon size={14} className="text-gray-500" /> Chèn Hình ảnh</button>
                             <button onClick={() => { editor?.chain().focus().insertContent({ type: 'customLatex' }).run(); setIsInsertOpen(false); }} className="flex items-center gap-2.5 px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 hover:text-white text-left"><Sigma size={14} className="text-gray-500" /> Công thức Toán (LaTeX)</button>
-                            <button onClick={() => { alert('Sẽ xổ danh sách Template hồ sơ dựng sẵn'); setIsInsertOpen(false); }} className="flex items-center gap-2.5 px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 hover:text-white text-left"><Layout size={14} className="text-gray-500" /> Chèn Mẫu dựng sẵn</button>
+                            <button onClick={() => { setIsTemplateModalOpen(true); setIsInsertOpen(false); }} className="flex items-center gap-2.5 px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 hover:text-white text-left"><Layout size={14} className="text-gray-500" /> Chèn Mẫu dựng sẵn</button>
                             <div className="h-px bg-gray-800 my-1"></div>
                             <button onClick={() => { editor.chain().focus().setHorizontalRule().run(); setIsInsertOpen(false); }} className="flex items-center gap-2.5 px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 hover:text-white text-left"><Minus size={14} className="text-gray-500" /> Vạch ngăn cách</button>
                         </div>
@@ -479,6 +491,71 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL CHÈN TEMPLATE (TỪ DATABASE) */}
+            {isTemplateModalOpen && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl w-[600px] max-h-[80vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
+                            <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
+                                <LayoutTemplate className="text-blue-600" /> Chọn Khuôn Mẫu
+                            </h3>
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-full transition-colors"><X size={20} /></button>
+                        </div>
+
+                        <div className="p-6 flex-1 overflow-y-auto bg-gray-50/30">
+                            {/* THANH TÌM KIẾM TEMPLATE */}
+                            <div className="relative mb-6">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                <input
+                                    type="text"
+                                    placeholder="Tìm tên khuôn mẫu..."
+                                    value={templateSearch}
+                                    onChange={e => setTemplateSearch(e.target.value)}
+                                    className="w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all shadow-sm"
+                                />
+                            </div>
+
+                            {/* DANH SÁCH TEMPLATE */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {dbTemplates
+                                    .filter(t => t.title.toLowerCase().includes(templateSearch.toLowerCase()))
+                                    .map(tpl => (
+                                        <button
+                                            key={tpl.id}
+                                            // Trong phần map dbTemplates:
+                                            onClick={() => {
+                                                if (!editor) return;
+
+                                                try {
+                                                    // Parse từ chuỗi string trong DB ra Object JSON của Tiptap
+                                                    const contentObject = JSON.parse(tpl.content);
+                                                    editor.commands.setContent(contentObject);
+                                                } catch (e) {
+                                                    // Fallback nếu là HTML cũ
+                                                    editor.commands.setContent(tpl.content || '');
+                                                }
+                                                setIsTemplateModalOpen(false);
+                                            }}
+                                            className="bg-white border border-gray-200 p-4 rounded-xl text-left hover:border-blue-500 hover:shadow-md transition-all group flex flex-col gap-1.5"
+                                        >
+                                            <span className="font-bold text-gray-800 group-hover:text-blue-600 text-sm truncate">{tpl.title}</span>
+                                            <span className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed">
+                                                {tpl.description || 'Khuôn mẫu động tạo từ Database'}
+                                            </span>
+                                        </button>
+                                    ))}
+
+                                {dbTemplates.length === 0 && (
+                                    <div className="col-span-full py-8 text-center text-gray-400 text-sm font-medium">
+                                        Chưa có Template nào. Hãy bấm Bánh Răng để tạo!
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

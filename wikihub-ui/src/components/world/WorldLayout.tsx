@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Search, ChevronDown, ChevronRight, FileText, LayoutTemplate, PanelLeftClose, PanelLeft, X, Upload, Link as LinkIcon, Settings } from 'lucide-react';import { getWorld } from '../../api/worldApi';
+import { Search, ChevronDown, ChevronRight, FileText, LayoutTemplate, PanelLeftClose, PanelLeft, X, Upload, Link as LinkIcon, Settings } from 'lucide-react'; import { getWorld } from '../../api/worldApi';
 import type { World } from '../../types/world';
 import { getArticles, createArticle, deleteArticle } from '../../api/articleApi';
 import type { Article } from '../../api/articleApi';
@@ -24,6 +24,40 @@ export default function WorldLayout() {
     const [searchTerm, setSearchTerm] = useState('');
     const [expandedCats, setExpandedCats] = useState<string[]>([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+// STATE CHO TÌM KIẾM BÀI VIẾT (GLOBAL SEARCH)
+    const [articleSearchTerm, setArticleSearchTerm] = useState('');
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const searchRef = useRef<HTMLDivElement>(null);
+
+    // Click ra ngoài để đóng dropdown tìm kiếm
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (searchRef.current && !searchRef.current.contains(event.target as Node)) setIsSearchOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Gọi API tìm kiếm bài viết (Debounce 300ms chống spam API)
+    useEffect(() => {
+        if (!articleSearchTerm.trim() || !worldId) {
+            setSearchResults([]);
+            setIsSearchOpen(false);
+            return;
+        }
+        const timer = setTimeout(() => {
+            fetch(`${import.meta.env.VITE_API_URL}/api/Articles/search?q=${encodeURIComponent(articleSearchTerm)}&worldId=${worldId}`)
+                .then(res => res.json())
+                .then(data => {
+                    setSearchResults(data);
+                    setIsSearchOpen(true);
+                })
+                .catch(console.error);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [articleSearchTerm, worldId]);
 
     type ViewState =
         | { mode: 'overview' }
@@ -179,14 +213,54 @@ export default function WorldLayout() {
 
                     {/* KHU VỰC GÓC PHẢI (SEARCH + BÁNH RĂNG) */}
                     <div className="ml-auto flex items-center gap-3">
-                        <div className="relative w-64">
+                        {/* THANH TÌM KIẾM BÀI VIẾT GLOBAL */}
+                        <div className="relative w-64" ref={searchRef}>
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                            <input type="text" placeholder="Lọc chuyên mục..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-gray-100 rounded-md py-1.5 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white border border-transparent" />
+                            <input 
+                                type="text" 
+                                placeholder="Tìm bài viết..." 
+                                value={articleSearchTerm} 
+                                onChange={(e) => setArticleSearchTerm(e.target.value)} 
+                                onFocus={() => { if (articleSearchTerm.trim()) setIsSearchOpen(true); }}
+                                className="w-full bg-gray-100 rounded-md py-1.5 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white border border-transparent transition-all" 
+                            />
+                            
+                            {/* DROPDOWN KẾT QUẢ */}
+                            {isSearchOpen && articleSearchTerm.trim() !== '' && (
+                                <div className="absolute top-full right-0 mt-2 w-80 bg-white border border-gray-200 shadow-2xl rounded-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                        Kết quả tìm kiếm
+                                    </div>
+                                    {searchResults.length > 0 ? (
+                                        <div className="max-h-[60vh] overflow-y-auto custom-scrollbar">
+                                            {searchResults.map(res => (
+                                                <button 
+                                                    key={res.id}
+                                                    onClick={() => {
+                                                        // Chuyển thẳng tới trang Đọc Bài Viết của kết quả này
+                                                        setViewState({ mode: 'read', typeName: res.type, articleId: res.id });
+                                                        setIsSearchOpen(false);
+                                                        setArticleSearchTerm('');
+                                                    }}
+                                                    className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0 flex flex-col gap-1 group"
+                                                >
+                                                    <span className="text-sm font-bold text-gray-800 group-hover:text-blue-700 truncate">{res.title}</span>
+                                                    <span className="text-[10px] text-gray-500 font-semibold bg-gray-200 px-2 py-0.5 rounded w-fit">{res.type}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="p-6 text-center text-sm text-gray-500">
+                                            Không tìm thấy "<span className="font-bold text-gray-800">{articleSearchTerm}</span>"
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* NÚT BÁNH RĂNG QUẢN LÝ TEMPLATE */}
                         <button
-                            onClick={() => alert('Sẽ mở Modal Quản lý Khuôn Mẫu (Template DB)')}
+                            onClick={() => setViewState({ mode: 'list', typeName: 'Template' })} 
                             className="p-2 text-gray-500 hover:bg-gray-100 hover:text-blue-600 rounded-full transition-colors"
                             title="Quản lý khuôn mẫu"
                         >

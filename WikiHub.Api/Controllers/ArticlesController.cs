@@ -25,20 +25,31 @@ public class ArticlesController : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<List<ArticleDto>>> GetArticles(
-        [FromQuery] Guid worldId,
+        [FromQuery] Guid worldId, // Vẫn giữ tham số này để không bị lỗi các Component khác
         [FromQuery] string? type,
         [FromQuery] bool? isOverview,
         [FromQuery] string sortBy = "CreatedAt")
     {
-        var query = _context.Articles.Where(a => a.WorldId == worldId);
+        var query = _context.Articles.AsQueryable();
 
-        if (isOverview.HasValue && isOverview.Value)
+        // 1. NẾU LÀ TEMPLATE: Lấy tất cả Template trên toàn hệ thống (Bỏ qua rào cản WorldId)
+        if (type == "Template")
         {
-            query = query.Where(a => a.IsOverview == true);
+            query = query.Where(a => a.Type == "Template");
         }
-        else if (!string.IsNullOrWhiteSpace(type))
+        else 
         {
-            query = query.Where(a => a.Type == type && a.IsOverview == false);
+            // 2. NẾU LÀ BÀI VIẾT THƯỜNG: Ép buộc phải thuộc về World hiện tại
+            query = query.Where(a => a.WorldId == worldId);
+
+            if (isOverview.HasValue && isOverview.Value)
+            {
+                query = query.Where(a => a.IsOverview == true);
+            }
+            else if (!string.IsNullOrWhiteSpace(type))
+            {
+                query = query.Where(a => a.Type == type && a.IsOverview == false);
+            }
         }
 
         query = sortBy switch
@@ -77,7 +88,7 @@ public class ArticlesController : ControllerBase
             .Where(a => a.WorldId == worldId && a.Title.Contains(q))
             .OrderBy(a => a.Title)
             .Take(5)
-            .Select(a => new { id = a.Id.ToString(), title = a.Title })
+            .Select(a => new { id = a.Id.ToString(), title = a.Title, type = a.Type }) // <--- THÊM type = a.Type VÀO ĐÂY
             .ToListAsync();
 
         return Ok(results);
