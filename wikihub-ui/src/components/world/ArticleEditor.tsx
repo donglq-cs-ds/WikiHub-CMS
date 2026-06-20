@@ -282,25 +282,6 @@ export default function ArticleEditor({ articleId, worldId, onBack, isTemplate =
                         <ArrowLeft size={20} />
                     </button>
 
-                    <input
-                        type="text"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        className="text-xl font-black text-gray-800 border-none outline-none bg-transparent placeholder-gray-300 focus:ring-0 flex-1 min-w-0 truncate max-w-sm"
-                        placeholder="Tên bài viết..."
-                        title={title}
-                    />
-
-                    {isTemplate && (
-                        <input
-                            type="text"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            className="text-sm text-gray-500 border-none outline-none bg-transparent placeholder-gray-300 focus:ring-0 flex-1 min-w-0 truncate max-w-xs"
-                            placeholder="Mô tả ngắn cho khuôn mẫu..."
-                        />
-                    )}
-
                     {/* NÚT MỤC LỤC (TOC) */}
                     <div className="relative">
                         <button
@@ -337,6 +318,27 @@ export default function ArticleEditor({ articleId, worldId, onBack, isTemplate =
                         )}
                     </div>
                 </div>
+
+                <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="text-xl font-black text-gray-800 border-none outline-none bg-transparent placeholder-gray-300 focus:ring-0 flex-1 min-w-0 truncate max-w-sm"
+                    placeholder="Tên bài viết..."
+                    title={title}
+                />
+
+                {isTemplate && (
+                    <input
+                        type="text"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        className="text-sm text-gray-500 border-none outline-none bg-transparent placeholder-gray-300 focus:ring-0 flex-1 min-w-0 truncate max-w-xs"
+                        placeholder="Mô tả ngắn cho khuôn mẫu..."
+                    />
+                )}
+
+
 
                 <div className="flex items-center gap-4 pl-4">
                     <div className="flex items-center gap-2 text-xs font-semibold text-green-600 bg-green-50 px-3 py-1.5 rounded-full whitespace-nowrap">

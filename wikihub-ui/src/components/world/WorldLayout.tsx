@@ -8,6 +8,7 @@ import ArticleManager from './ArticleManager';
 import ArticleReader from './ArticleReader';
 import ArticleEditor from './ArticleEditor';
 import TemplateManager from './TemplateManager';
+import {useNavigate } from 'react-router-dom';
 
 const CATEGORIES = [
     { id: '1', title: 'Nhân vật & Xã hội', types: ['Nhân vật', 'Gia tộc/Dòng họ', 'Chủng tộc/Sắc tộc', 'Nghề nghiệp/Ngành nghề'] },
@@ -19,12 +20,14 @@ const CATEGORIES = [
     { id: '7', title: 'Lý thuyết & Quy luật Vũ trụ', types: ['Quy luật tự nhiên', 'Ngành khoa học/Công nghệ', 'Nguồn năng lượng/Tài nguyên'] },
 ];
 
+
 export default function WorldLayout() {
     const { worldId } = useParams();
     const [world, setWorld] = useState<World | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [expandedCats, setExpandedCats] = useState<string[]>([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const navigate = useNavigate();
 
     // STATE CHO TÌM KIẾM BÀI VIẾT (GLOBAL SEARCH)
     const [articleSearchTerm, setArticleSearchTerm] = useState('');
@@ -32,6 +35,16 @@ export default function WorldLayout() {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const searchRef = useRef<HTMLDivElement>(null);
 
+    useEffect(() => {
+        if (worldId) {
+            getWorld(worldId)
+                .then(setWorld)
+                .catch((error) => {
+                    console.error("World không tồn tại:", error);
+                    navigate('/'); // Tự động về Lobby nếu World không tìm thấy
+                });
+        }
+    }, [worldId, navigate]);
     // Click ra ngoài để đóng dropdown tìm kiếm
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {

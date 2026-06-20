@@ -81,36 +81,49 @@ public class ArticlesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ArticleDto>> CreateArticle([FromForm] Guid worldId, [FromForm] CreateArticleDto dto)
     {
-        var article = new Article
+        var worldExists = await _context.Worlds.AnyAsync(w => w.Id == worldId);
+        if (!worldExists)
         {
-            WorldId = worldId,
-            Title = string.IsNullOrWhiteSpace(dto.Title) ? "Bài viết mới" : dto.Title,
-            Description = dto.Description,
-            Type = dto.Type,
-            IsOverview = dto.IsOverview
-        };
+            return BadRequest($"World với ID {worldId} không tồn tại trong Database.");
+        }
 
-        if (dto.ImageFile != null)
+        try
         {
-            var uploadsFolder = Path.Combine(_env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "images");
-            Directory.CreateDirectory(uploadsFolder);
-            var uniqueFileName = Guid.NewGuid().ToString() + Path.GetExtension(dto.ImageFile.FileName);
-            var filePath = Path.Combine(uploadsFolder, uniqueFileName);
-
-            using (var fileStream = new FileStream(filePath, FileMode.Create))
+            var article = new Article
             {
-                await dto.ImageFile.CopyToAsync(fileStream);
-            }
-            article.ImagePath = $"/images/{uniqueFileName}";
-        }
-        else if (!string.IsNullOrWhiteSpace(dto.ImageUrl))
-        {
-            article.ImagePath = dto.ImageUrl;
-        }
+                WorldId = worldId,
+                Title = string.IsNullOrWhiteSpace(dto.Title) ? "Bài viết mới" : dto.Title,
+                Description = dto.Description,
+                Type = dto.Type,
+                IsOverview = dto.IsOverview
+            };
 
-        _context.Articles.Add(article);
-        await _context.SaveChangesAsync();
-        return Ok(article);
+            if (dto.ImageFile != null)
+            {
+                var uploadsFolder = Path.Combine(_env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "images");
+                Directory.CreateDirectory(uploadsFolder);
+                var uniqueFileName = Guid.NewGuid().ToString() + Path.GetExtension(dto.ImageFile.FileName);
+                var filePath = Path.Combine(uploadsFolder, uniqueFileName);
+
+                using (var fileStream = new FileStream(filePath, FileMode.Create))
+                {
+                    await dto.ImageFile.CopyToAsync(fileStream);
+                }
+                article.ImagePath = $"/images/{uniqueFileName}";
+            }
+            else if (!string.IsNullOrWhiteSpace(dto.ImageUrl))
+            {
+                article.ImagePath = dto.ImageUrl;
+            }
+
+            _context.Articles.Add(article);
+            await _context.SaveChangesAsync();
+            return Ok(article);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Lỗi Server: {ex.Message} | {ex.InnerException?.Message}");
+        }
     }
 
     [HttpDelete("{id}")]

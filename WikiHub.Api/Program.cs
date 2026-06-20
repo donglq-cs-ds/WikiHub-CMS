@@ -1,6 +1,7 @@
 using Microsoft.Extensions.FileProviders;
 using Microsoft.EntityFrameworkCore;
 using WikiHub.Api.Data;
+using WikiHub.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,6 +38,13 @@ app.UseStaticFiles(new StaticFileOptions
     FileProvider = new PhysicalFileProvider(imagesPath),
     RequestPath = "/images"
 });
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate(); // nếu đang dùng EF Migrations
+    SeedData.SeedTemplates(db);
+}
 app.UseAuthorization();
 
 app.MapControllers();
