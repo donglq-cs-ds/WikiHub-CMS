@@ -147,3 +147,4 @@ D:\WH\WikiHub.Api\obj\Debug\net10.0\WikiHub.Api.pdb
 D:\WH\WikiHub.Api\obj\Debug\net10.0\WikiHub.Api.genruntimeconfig.cache
 D:\WH\WikiHub.Api\obj\Debug\net10.0\ref\WikiHub.Api.dll
 D:\WH\WikiHub.Api\bin\Debug\net10.0\WikiHub.Api.staticwebassets.runtime.json
+D:\WH\WikiHub.Api\obj\Debug\net10.0\WikiHub.Api.sourcelink.json
