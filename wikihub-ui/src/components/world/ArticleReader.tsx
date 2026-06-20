@@ -14,6 +14,8 @@ import { createCustomMention } from './CustomMentionExtension';
 import { CustomInfoBox } from './CustomInfoBoxExtension';
 import { CustomImage } from './CustomImageExtension';
 import { CustomTable } from './CustomTableExtension';
+import tippy from 'tippy.js';
+import 'tippy.js/dist/tippy.css';
 
 import { ArrowLeft, Pencil } from 'lucide-react';
 
@@ -55,30 +57,82 @@ export default function ArticleReader({ articleId, worldId, onBack, onEdit }: Pr
     });
 
     // Kéo dữ liệu từ DB (Cả Title và Content)
+    // ==========================================
+    // HIỆU ỨNG HOVER XEM TRƯỚC BÀI VIẾT (WIKIPEDIA STYLE)
+    // ==========================================
+    // ========================================================================
+    // TỔNG HỢP: HOVER PREVIEW CHO CẢ MENTION VÀ LINK (WIKIPEDIA STYLE)
+    // ========================================================================
     useEffect(() => {
-        const fetchArticleData = async () => {
-            try {
-                const res = await fetch(`http://localhost:5213/api/Articles/${articleId}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    setTitle(data.title);
+        if (!editor) return;
 
-                    // Nạp nội dung bài viết vào Editor
-                    if (editor && data.content) {
-                        editor.commands.setContent(data.content);
-                    }
-                } else {
-                    setTitle('Lỗi: Không tìm thấy bài viết');
+        const instance = tippy(editor.view.dom, {
+            // Target: Gộp cả class "mention" và thẻ "a" (link)
+            target: '.mention, a', 
+            placement: 'top',
+            interactive: true,
+            allowHTML: true,
+            delay: [300, 100],
+            theme: 'light-border',
+            content: '<div class="text-xs text-gray-400 p-2 font-semibold">Đang tải...</div>',
+            
+            onShow: async (tip) => {
+                // 1. Xác định ID: Mention có data-id, Link có href (/articles/GUID)
+                const href = tip.reference.getAttribute('href');
+                const mentionId = tip.reference.getAttribute('data-id');
+                
+                // Trích xuất GUID từ href nếu không phải là mention
+                const articleId = mentionId || (href?.includes('/articles/') ? href.split('/articles/')[1] : null);
+                
+                if (!articleId) {
+                    // Nếu là link ngoài (không phải bài trong Wiki) thì không hiện preview
+                    return false; 
                 }
-            } catch (error) {
-                console.error("Lỗi khi kéo dữ liệu bài viết:", error);
-                setTitle('Lỗi kết nối Server');
-            }
-        };
 
-        if (articleId && editor) {
-            fetchArticleData();
-        }
+                try {
+                    const res = await fetch(`http://localhost:5213/api/Articles/${articleId}`);
+                    if (!res.ok) throw new Error('Not found');
+                    const article = await res.json();
+
+                    // 2. Thuật toán "Mổ xẻ" HTML để bóc tách đoạn Mô Tả
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(article.content || '', 'text/html');
+                    
+                    let moTaSnippet = article.description || 'Chưa có mô tả ngắn.';
+                    
+                    // Tìm thẻ H2 "Mô tả"
+                    const h2Tags = Array.from(doc.querySelectorAll('h2'));
+                    const moTaH2 = h2Tags.find(h => h.textContent?.toLowerCase().includes('mô tả'));
+                    
+                    if (moTaH2 && moTaH2.nextElementSibling?.tagName === 'P') {
+                        const fullText = moTaH2.nextElementSibling.textContent || '';
+                        moTaSnippet = fullText.length > 150 ? fullText.substring(0, 150) + '...' : fullText;
+                    }
+
+                    // 3. Render giao diện thẻ Tooltip (dùng chung cho cả link và mention)
+                    const imageUrl = article.imagePath ? `http://localhost:5213${article.imagePath}` : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=100&auto=format&fit=crop';
+                    
+                    tip.setContent(`
+                        <div class="flex flex-col gap-2.5 p-1.5 w-64 text-left font-sans bg-white shadow-xl">
+                            <div class="flex items-start gap-3">
+                                <img src="${imageUrl}" class="w-12 h-12 object-cover rounded-lg shrink-0 border border-gray-200" />
+                                <div class="flex-1 min-w-0 pt-0.5">
+                                    <div class="font-black text-[14px] text-gray-800 truncate leading-tight">${article.title}</div>
+                                    <div class="text-[10px] text-blue-600 font-bold tracking-wider uppercase mt-1 bg-blue-50 inline-block px-2 py-0.5 rounded-md">${article.type}</div>
+                                </div>
+                            </div>
+                            <div class="text-[12px] text-gray-600 leading-relaxed border-t border-gray-100 pt-2.5 line-clamp-3">
+                                ${moTaSnippet}
+                            </div>
+                        </div>
+                    `);
+                } catch (error) {
+                    tip.setContent('<div class="text-xs text-red-500 p-2 font-bold">Không tìm thấy bài viết!</div>');
+                }
+            }
+        });
+
+        return () => instance.destroy();
     }, [articleId, editor]);
 
     if (!editor) return null;
