@@ -7,6 +7,7 @@ import type { Article } from '../../api/articleApi';
 import ArticleManager from './ArticleManager';
 import ArticleReader from './ArticleReader';
 import ArticleEditor from './ArticleEditor';
+import TemplateManager from './TemplateManager';
 
 const CATEGORIES = [
     { id: '1', title: 'Nhân vật & Xã hội', types: ['Nhân vật', 'Gia tộc/Dòng họ', 'Chủng tộc/Sắc tộc', 'Nghề nghiệp/Ngành nghề'] },
@@ -25,7 +26,7 @@ export default function WorldLayout() {
     const [expandedCats, setExpandedCats] = useState<string[]>([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-// STATE CHO TÌM KIẾM BÀI VIẾT (GLOBAL SEARCH)
+    // STATE CHO TÌM KIẾM BÀI VIẾT (GLOBAL SEARCH)
     const [articleSearchTerm, setArticleSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -63,7 +64,9 @@ export default function WorldLayout() {
         | { mode: 'overview' }
         | { mode: 'list', typeName: string }
         | { mode: 'read', typeName: string, articleId: string }
-        | { mode: 'edit', typeName: string, articleId: string };
+        | { mode: 'edit', typeName: string, articleId: string }
+        | { mode: 'templates' }
+        | { mode: 'editTemplate', templateId: string };
     const [viewState, setViewState] = useState<ViewState>({ mode: 'overview' });
     const [articles, setArticles] = useState<Article[]>([]);
     const [activeSort, setActiveSort] = useState('CreatedAt');
@@ -89,7 +92,7 @@ export default function WorldLayout() {
     }, [worldId]);
 
     useEffect(() => {
-        if (worldId) {
+        if (worldId && viewState.mode !== 'templates' && viewState.mode !== 'editTemplate') {
             getArticles({
                 worldId,
                 type: currentTypeName || undefined,
@@ -97,7 +100,7 @@ export default function WorldLayout() {
                 sortBy: activeSort
             }).then(setArticles).catch(console.error);
         }
-    }, [worldId, currentTypeName, isOverview, activeSort, refreshTrigger]);
+    }, [worldId, currentTypeName, isOverview, activeSort, refreshTrigger, viewState.mode]);
 
     const filteredCategories = CATEGORIES.map(cat => ({
         ...cat,
@@ -216,15 +219,15 @@ export default function WorldLayout() {
                         {/* THANH TÌM KIẾM BÀI VIẾT GLOBAL */}
                         <div className="relative w-64" ref={searchRef}>
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                            <input 
-                                type="text" 
-                                placeholder="Tìm bài viết..." 
-                                value={articleSearchTerm} 
-                                onChange={(e) => setArticleSearchTerm(e.target.value)} 
+                            <input
+                                type="text"
+                                placeholder="Tìm bài viết..."
+                                value={articleSearchTerm}
+                                onChange={(e) => setArticleSearchTerm(e.target.value)}
                                 onFocus={() => { if (articleSearchTerm.trim()) setIsSearchOpen(true); }}
-                                className="w-full bg-gray-100 rounded-md py-1.5 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white border border-transparent transition-all" 
+                                className="w-full bg-gray-100 rounded-md py-1.5 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white border border-transparent transition-all"
                             />
-                            
+
                             {/* DROPDOWN KẾT QUẢ */}
                             {isSearchOpen && articleSearchTerm.trim() !== '' && (
                                 <div className="absolute top-full right-0 mt-2 w-80 bg-white border border-gray-200 shadow-2xl rounded-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -234,7 +237,7 @@ export default function WorldLayout() {
                                     {searchResults.length > 0 ? (
                                         <div className="max-h-[60vh] overflow-y-auto custom-scrollbar">
                                             {searchResults.map(res => (
-                                                <button 
+                                                <button
                                                     key={res.id}
                                                     onClick={() => {
                                                         // Chuyển thẳng tới trang Đọc Bài Viết của kết quả này
@@ -260,7 +263,7 @@ export default function WorldLayout() {
 
                         {/* NÚT BÁNH RĂNG QUẢN LÝ TEMPLATE */}
                         <button
-                            onClick={() => setViewState({ mode: 'list', typeName: 'Template' })} 
+                            onClick={() => setViewState({ mode: 'templates' })}
                             className="p-2 text-gray-500 hover:bg-gray-100 hover:text-blue-600 rounded-full transition-colors"
                             title="Quản lý khuôn mẫu"
                         >
@@ -336,6 +339,24 @@ export default function WorldLayout() {
                                     setViewState({ mode: 'list', typeName: viewState.typeName });
                                 }
                             }}
+                        />
+                    )}
+
+                    {/* QUẢN LÝ KHUÔN MẪU */}
+                    {viewState.mode === 'templates' && (
+                        <TemplateManager
+                            onBack={() => setViewState({ mode: 'overview' })}
+                            onEdit={(id) => setViewState({ mode: 'editTemplate', templateId: id })}
+                        />
+                    )}
+
+                    {/* SOẠN NỘI DUNG KHUÔN MẪU */}
+                    {viewState.mode === 'editTemplate' && (
+                        <ArticleEditor
+                            articleId={viewState.templateId}
+                            worldId={worldId || ''}
+                            isTemplate={true}
+                            onBack={() => setViewState({ mode: 'templates' })}
                         />
                     )}
                 </div>

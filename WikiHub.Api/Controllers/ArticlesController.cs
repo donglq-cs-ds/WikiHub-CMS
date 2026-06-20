@@ -7,9 +7,6 @@ using WikiHub.Api.Models.DTOs;
 
 namespace WikiHub.Api.Controllers;
 
-// 1. ĐƯA DTO LÊN ĐÂY, TRÁNH ĐƯỜNG CỦA CONTROLLER
-
-// 2. TRẢ LẠI CHỦ QUYỀN VÀ ĐỊA CHỈ CHO CONTROLLER
 [Route("api/[controller]")]
 [ApiController]
 public class ArticlesController : ControllerBase
@@ -25,31 +22,20 @@ public class ArticlesController : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<List<ArticleDto>>> GetArticles(
-        [FromQuery] Guid worldId, // Vẫn giữ tham số này để không bị lỗi các Component khác
+        [FromQuery] Guid worldId,
         [FromQuery] string? type,
         [FromQuery] bool? isOverview,
         [FromQuery] string sortBy = "CreatedAt")
     {
-        var query = _context.Articles.AsQueryable();
+        var query = _context.Articles.Where(a => a.WorldId == worldId);
 
-        // 1. NẾU LÀ TEMPLATE: Lấy tất cả Template trên toàn hệ thống (Bỏ qua rào cản WorldId)
-        if (type == "Template")
+        if (isOverview.HasValue && isOverview.Value)
         {
-            query = query.Where(a => a.Type == "Template");
+            query = query.Where(a => a.IsOverview == true);
         }
-        else 
+        else if (!string.IsNullOrWhiteSpace(type))
         {
-            // 2. NẾU LÀ BÀI VIẾT THƯỜNG: Ép buộc phải thuộc về World hiện tại
-            query = query.Where(a => a.WorldId == worldId);
-
-            if (isOverview.HasValue && isOverview.Value)
-            {
-                query = query.Where(a => a.IsOverview == true);
-            }
-            else if (!string.IsNullOrWhiteSpace(type))
-            {
-                query = query.Where(a => a.Type == type && a.IsOverview == false);
-            }
+            query = query.Where(a => a.Type == type && a.IsOverview == false);
         }
 
         query = sortBy switch
@@ -76,8 +62,6 @@ public class ArticlesController : ControllerBase
         return Ok(articles);
     }
 
-    // ── Endpoint cho @mention search ────────────────────────────────────────
-    // FE gọi: GET /api/articles/search?q=...&worldId=...
     [HttpGet("search")]
     public async Task<IActionResult> Search([FromQuery] string q, [FromQuery] Guid worldId)
     {
@@ -88,7 +72,7 @@ public class ArticlesController : ControllerBase
             .Where(a => a.WorldId == worldId && a.Title.Contains(q))
             .OrderBy(a => a.Title)
             .Take(5)
-            .Select(a => new { id = a.Id.ToString(), title = a.Title, type = a.Type }) // <--- THÊM type = a.Type VÀO ĐÂY
+            .Select(a => new { id = a.Id.ToString(), title = a.Title, type = a.Type })
             .ToListAsync();
 
         return Ok(results);
@@ -166,10 +150,10 @@ public class ArticlesController : ControllerBase
             UpdatedAt = article.UpdatedAt
         });
     }
+
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateArticle(Guid id, [FromBody] ArticleUpdateDto dto)
     {
-        // Kiểm tra xem ID trên URL và ID trong Body có khớp nhau không
         if (id != dto.Id)
         {
             return BadRequest("ID bài viết không khớp.");
@@ -181,10 +165,9 @@ public class ArticlesController : ControllerBase
             return NotFound("Không tìm thấy bài viết trong Database.");
         }
 
-        // Cập nhật dữ liệu
         article.Title = dto.Title;
         article.Content = dto.Content;
-        article.UpdatedAt = DateTime.UtcNow; // Tự động cập nhật giờ sửa
+        article.UpdatedAt = DateTime.UtcNow;
 
         try
         {
@@ -196,6 +179,7 @@ public class ArticlesController : ControllerBase
             return StatusCode(500, $"Lỗi Server: {ex.Message}");
         }
     }
+
     [HttpPost("upload-image")]
     public async Task<IActionResult> UploadImage([FromForm] IFormFile ImageFile)
     {
@@ -206,23 +190,18 @@ public class ArticlesController : ControllerBase
 
         try
         {
-            // Tạo thư mục wwwroot/images nếu chưa có
             var uploadsFolder = Path.Combine(_env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "images");
             Directory.CreateDirectory(uploadsFolder);
 
-            // Sinh tên file độc nhất để không bị trùng
             var uniqueFileName = Guid.NewGuid().ToString() + Path.GetExtension(ImageFile.FileName);
             var filePath = Path.Combine(uploadsFolder, uniqueFileName);
 
-            // Lưu file xuống ổ cứng
             using (var fileStream = new FileStream(filePath, FileMode.Create))
             {
                 await ImageFile.CopyToAsync(fileStream);
             }
 
-            // Trả về đường dẫn thật cho Frontend dùng (Ví dụ: /images/12345-abcde.png)
             var fileUrl = $"/images/{uniqueFileName}";
-            
             return Ok(new { url = fileUrl });
         }
         catch (Exception ex)

@@ -26,9 +26,10 @@ interface Props {
     articleId: string;
     worldId: string;
     onBack: () => void;
+    isTemplate?: boolean;
 }
 
-export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
+export default function ArticleEditor({ articleId, worldId, onBack, isTemplate = false }: Props) {
     const API_URL = import.meta.env.VITE_API_URL; // Dùng biến môi trường
     const [isInsertOpen, setIsInsertOpen] = useState(false);
 
@@ -48,6 +49,8 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
     const [hoveredCell, setHoveredCell] = useState({ r: -1, c: -1 });
 
     const [title, setTitle] = useState('Đang tải dữ liệu...');
+    const [description, setDescription] = useState(''); // chỉ dùng khi isTemplate
+
     // STATE CHO MỤC LỤC (TOC)
     const [isTocOpen, setIsTocOpen] = useState(false);
     const [tocItems, setTocItems] = useState<{ text: string, level: number, pos: number }[]>([]);
@@ -75,10 +78,13 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
     // TRẠNG THÁI LƯU BÀI VIẾT
     const [isSaving, setIsSaving] = useState(false);
 
-    // TRẠNG THÁI QUẢN LÝ TEMPLATE
+    // TRẠNG THÁI QUẢN LÝ TEMPLATE (chèn mẫu có sẵn vào bài đang soạn)
     const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
     const [templateSearch, setTemplateSearch] = useState('');
     const [dbTemplates, setDbTemplates] = useState<any[]>([]);
+
+    // Template không thuộc world nào nên không cho @mention trỏ vào bài viết của 1 world cụ thể
+    const mentionWorldId = isTemplate ? '' : worldId;
 
     const editor = useEditor({
         extensions: [
@@ -88,14 +94,14 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
             Color,
             Link.configure({ openOnClick: false, HTMLAttributes: { class: 'text-blue-600 underline cursor-pointer' } }),
             CustomImage,
-            CustomInfoBox.configure({ worldId }),
+            CustomInfoBox.configure({ worldId: mentionWorldId }),
             CustomLatex,
             CustomTable,
             TableRow,
             TableHeader,
             TableCell,
             TextAlign.configure({ types: ['heading', 'paragraph'] }),
-            createCustomMention(worldId),
+            createCustomMention(mentionWorldId),
         ],
         content: '',
         editorProps: {
@@ -105,26 +111,30 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
         },
     });
 
-    // LẤY DỮ LIỆU TỪ DATABASE
+    // LẤY DỮ LIỆU TỪ DATABASE (Article hoặc Template tùy isTemplate)
     useEffect(() => {
         const fetchArticleData = async () => {
             try {
-                const res = await fetch(`${API_URL}/api/Articles/${articleId}`);
+                const url = isTemplate
+                    ? `${API_URL}/api/Templates/${articleId}`
+                    : `${API_URL}/api/Articles/${articleId}`;
+                const res = await fetch(url);
                 if (res.ok) {
                     const data = await res.json();
                     setTitle(data.title);
+                    if (isTemplate) setDescription(data.description || '');
                     if (editor && data.content) {
                         try {
                             editor.commands.setContent(JSON.parse(data.content));
                         } catch {
-                            editor.commands.setContent(data.content); 
+                            editor.commands.setContent(data.content);
                         }
                     }
                 } else {
-                    setTitle('Lỗi: Không tìm thấy bài viết');
+                    setTitle(isTemplate ? 'Lỗi: Không tìm thấy khuôn mẫu' : 'Lỗi: Không tìm thấy bài viết');
                 }
             } catch (error) {
-                console.error("Lỗi khi kéo dữ liệu bài viết:", error);
+                console.error("Lỗi khi kéo dữ liệu:", error);
                 setTitle('Lỗi kết nối Server');
             }
         };
@@ -134,27 +144,29 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
         }
     }, [articleId, editor]);
 
-    // HÀM LƯU BÀI VIẾT
+    // HÀM LƯU (Article hoặc Template tùy isTemplate)
     const handleSave = async () => {
         if (!editor) return;
         setIsSaving(true);
         try {
             const jsonContent = editor.getJSON();
+            const url = isTemplate
+                ? `${API_URL}/api/Templates/${articleId}`
+                : `${API_URL}/api/Articles/${articleId}`;
+            const body = isTemplate
+                ? { id: articleId, title, description, content: JSON.stringify(jsonContent) }
+                : { id: articleId, title, content: JSON.stringify(jsonContent) };
 
-            const response = await fetch(`${API_URL}/api/Articles/${articleId}`, {
+            const response = await fetch(url, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id: articleId,
-                    title: title,
-                    content: JSON.stringify(jsonContent)
-                })
+                body: JSON.stringify(body)
             });
 
             if (response.ok) {
-                console.log('Lưu bài viết thành công!');
+                console.log('Lưu thành công!');
             } else {
-                alert('Lỗi khi lưu bài viết!');
+                alert('Lỗi khi lưu!');
             }
         } catch (error) {
             console.error('Lỗi kết nối khi lưu:', error);
@@ -229,11 +241,10 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
         }
     };
 
-    // KHI MỞ MODAL CHÈN MẪU -> KÉO DANH SÁCH TEMPLATE TỪ BẢNG ARTICLES VỀ
+    // KHI MỞ MODAL CHÈN MẪU -> KÉO DANH SÁCH TEMPLATE TỪ BẢNG TEMPLATES VỀ (toàn hệ thống, không lọc world)
     useEffect(() => {
         if (isTemplateModalOpen) {
-            // Truyền thêm worldId để API không báo lỗi thiếu tham số
-            fetch(`${API_URL}/api/Articles?worldId=${worldId}&type=Template`)
+            fetch(`${API_URL}/api/Templates`)
                 .then(res => res.json())
                 .then(data => setDbTemplates(data))
                 .catch(err => console.error("Lỗi tải Template:", err));
@@ -257,7 +268,7 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
             editor.off('update', handleUpdate);
             clearTimeout(window.autoSaveTimer);
         };
-    }, [editor, title]);
+    }, [editor, title, description]);
 
     if (!editor) return null;
 
@@ -279,6 +290,16 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
                         placeholder="Tên bài viết..."
                         title={title}
                     />
+
+                    {isTemplate && (
+                        <input
+                            type="text"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            className="text-sm text-gray-500 border-none outline-none bg-transparent placeholder-gray-300 focus:ring-0 flex-1 min-w-0 truncate max-w-xs"
+                            placeholder="Mô tả ngắn cho khuôn mẫu..."
+                        />
+                    )}
 
                     {/* NÚT MỤC LỤC (TOC) */}
                     <div className="relative">
@@ -527,16 +548,13 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
                                     .map(tpl => (
                                         <button
                                             key={tpl.id}
-                                            // Trong phần map dbTemplates:
                                             onClick={() => {
                                                 if (!editor) return;
 
                                                 try {
-                                                    // Parse từ chuỗi string trong DB ra Object JSON của Tiptap
                                                     const contentObject = JSON.parse(tpl.content);
                                                     editor.commands.setContent(contentObject);
                                                 } catch (e) {
-                                                    // Fallback nếu là HTML cũ
                                                     editor.commands.setContent(tpl.content || '');
                                                 }
                                                 setIsTemplateModalOpen(false);

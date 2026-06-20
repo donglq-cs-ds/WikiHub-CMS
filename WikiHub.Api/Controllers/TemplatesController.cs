@@ -6,8 +6,6 @@ using WikiHub.Api.Models.DTOs;
 
 namespace WikiHub.Api.Controllers;
 
-// DTOs hứng dữ liệu từ React gửi lên
-
 [Route("api/[controller]")]
 [ApiController]
 public class TemplatesController : ControllerBase
@@ -19,14 +17,13 @@ public class TemplatesController : ControllerBase
         _context = context;
     }
 
-    // 1. Lấy danh sách Khuôn mẫu của một Thế giới
+    // 1. Lấy TOÀN BỘ Khuôn mẫu - dùng chung cho mọi Thế giới
     [HttpGet]
-    public async Task<IActionResult> GetTemplates([FromQuery] Guid worldId)
+    public async Task<IActionResult> GetTemplates()
     {
         var templates = await _context.ArticleTemplates
-            .Where(t => t.WorldId == worldId)
             .OrderByDescending(t => t.CreatedAt)
-            .Select(t => new { t.Id, t.Name, t.HtmlContent }) // Trả về cho FE dạng rút gọn
+            .Select(t => new { t.Id, t.Title, t.Description, t.Content })
             .ToListAsync();
 
         return Ok(templates);
@@ -47,9 +44,9 @@ public class TemplatesController : ControllerBase
     {
         var template = new ArticleTemplate
         {
-            WorldId = dto.WorldId,
-            Name = dto.Name,
-            HtmlContent = dto.HtmlContent
+            Title = dto.Title,
+            Description = dto.Description,
+            Content = dto.Content
         };
 
         _context.ArticleTemplates.Add(template);
@@ -58,7 +55,7 @@ public class TemplatesController : ControllerBase
         return Ok(template);
     }
 
-    // 4. Cập nhật Khuôn mẫu (Lưu từ TemplateEditor)
+    // 4. Cập nhật Khuôn mẫu (Lưu từ ArticleEditor khi isTemplate=true)
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateTemplate(Guid id, [FromBody] UpdateTemplateDto dto)
     {
@@ -67,8 +64,10 @@ public class TemplatesController : ControllerBase
         var template = await _context.ArticleTemplates.FindAsync(id);
         if (template == null) return NotFound("Không tìm thấy Khuôn mẫu.");
 
-        template.Name = dto.Name;
-        template.HtmlContent = dto.HtmlContent;
+        template.Title = dto.Title;
+        template.Description = dto.Description;
+        template.Content = dto.Content;
+        template.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
         return Ok(new { message = "Cập nhật Khuôn mẫu thành công!" });

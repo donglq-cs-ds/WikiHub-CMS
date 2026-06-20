@@ -16,7 +16,7 @@ import { CustomImage } from './CustomImageExtension';
 import { CustomTable } from './CustomTableExtension';
 import tippy, { delegate } from 'tippy.js';
 import 'tippy.js/dist/tippy.css';
-import { ArrowLeft, Pencil } from 'lucide-react';
+import { ArrowLeft, Pencil, ListTree } from 'lucide-react';
 const API_URL = import.meta.env.VITE_API_URL;
 interface Props {
     articleId: string;
@@ -27,6 +27,10 @@ interface Props {
 
 export default function ArticleReader({ articleId, worldId, onBack, onEdit }: Props) {
     const [title, setTitle] = useState('Đang tải dữ liệu...');
+
+    // STATE CHO MỤC LỤC (TOC)
+    const [isTocOpen, setIsTocOpen] = useState(false);
+    const [tocItems, setTocItems] = useState<{ text: string, level: number, pos: number }[]>([]);
 
     const editor = useEditor({
         editable: false, // QUAN TRỌNG NHẤT: Khóa chết Editor, chỉ cho đọc
@@ -55,6 +59,26 @@ export default function ArticleReader({ articleId, worldId, onBack, onEdit }: Pr
         },
     });
 
+    const generateToc = () => {
+        if (!editor) return;
+        const headings: { text: string, level: number, pos: number }[] = [];
+        // Quét toàn bộ nội dung Editor để tìm thẻ Heading
+        editor.state.doc.descendants((node, pos) => {
+            if (node.type.name === 'heading') {
+                headings.push({ text: node.textContent, level: node.attrs.level, pos });
+            }
+        });
+        setTocItems(headings);
+        setIsTocOpen(!isTocOpen);
+    };
+
+    const scrollToHeading = (pos: number) => {
+        if (!editor) return;
+        editor.commands.setTextSelection(pos);
+        editor.commands.scrollIntoView();
+        setIsTocOpen(false);
+    };
+
     useEffect(() => {
         if (!articleId || !editor) return;
 
@@ -65,9 +89,17 @@ export default function ArticleReader({ articleId, worldId, onBack, onEdit }: Pr
             })
             .then(data => {
                 setTitle(data.title);
-                // Bơm nội dung HTML vào Tiptap (chế độ chỉ đọc)
+                // Bơm nội dung vào Tiptap (chế độ chỉ đọc)
+                // Nội dung được lưu dưới dạng chuỗi JSON của Tiptap (xem ArticleEditor.handleSave),
+                // nên phải parse trước khi setContent, nếu không Tiptap sẽ coi đó là chuỗi HTML
+                // và hiển thị nguyên văn JSON ra màn hình.
                 if (data.content) {
-                    editor.commands.setContent(data.content);
+                    try {
+                        editor.commands.setContent(JSON.parse(data.content));
+                    } catch {
+                        // Phòng trường hợp dữ liệu cũ còn lưu dạng HTML thô
+                        editor.commands.setContent(data.content);
+                    }
                 }
             })
             .catch(error => {
@@ -158,15 +190,50 @@ export default function ArticleReader({ articleId, worldId, onBack, onEdit }: Pr
 
             {/* HEADER CHẾ ĐỘ ĐỌC */}
             <div className="flex items-center justify-between py-4 border-b border-gray-100 bg-white z-10 shrink-0 px-8">
-                <div className="flex items-center gap-4 flex-1">
+                <div className="flex items-center gap-4 flex-1 min-w-0">
                     <button onClick={onBack} className="p-2 bg-gray-50 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                         <ArrowLeft size={20} />
                     </button>
+                    {/* NÚT MỤC LỤC (TOC) */}
+                    <div className="relative shrink-0">
+                        <button
+                            onClick={generateToc}
+                            className={`p-1.5 rounded-lg transition-colors flex items-center gap-2 ${isTocOpen ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'}`}
+                            title="Mục lục bài viết"
+                        >
+                            <ListTree size={18} />
+                        </button>
 
+                        {/* DROPDOWN MỤC LỤC */}
+                        {isTocOpen && (
+                            <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-gray-200 shadow-2xl rounded-xl py-2 z-[60] animate-in fade-in slide-in-from-top-2">
+                                <div className="px-4 py-2 border-b border-gray-100 mb-2">
+                                    <h4 className="font-bold text-gray-800 text-sm">Mục lục</h4>
+                                </div>
+                                <div className="max-h-[60vh] overflow-y-auto custom-scrollbar px-2">
+                                    {tocItems.length === 0 ? (
+                                        <div className="p-4 text-center text-sm text-gray-400">Chưa có tiêu đề nào.</div>
+                                    ) : (
+                                        tocItems.map((item, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => scrollToHeading(item.pos)}
+                                                className="w-full text-left px-3 py-1.5 hover:bg-blue-50 rounded-lg text-sm text-gray-600 hover:text-blue-700 transition-colors truncate"
+                                                style={{ paddingLeft: `${(item.level - 1) * 12 + 12}px`, fontWeight: item.level === 1 ? 'bold' : 'normal' }}
+                                            >
+                                                {item.text || 'Tiêu đề trống'}
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                     {/* Tên bài viết ở dạng text bình thường, không gõ được nữa */}
-                    <h1 className="text-xl font-black text-gray-800 flex-1 min-w-0 truncate" title={title}>
+                    <h1 className="text-xl font-black text-gray-800 min-w-0 truncate max-w-sm" title={title}>
                         {title}
                     </h1>
+
                 </div>
 
                 <div className="flex items-center gap-4 pl-4">
