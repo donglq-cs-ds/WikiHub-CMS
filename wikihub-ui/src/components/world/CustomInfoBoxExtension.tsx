@@ -2,7 +2,7 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react';
 import { Trash2, X, UploadCloud } from 'lucide-react';
 import { useState } from 'react';
-import { MiniMentionField } from './MiniMentionField';
+import { MiniMentionField } from './Minimentionfield';
 
 // JSONContent rỗng dùng làm giá trị mặc định cho 1 field mới
 const emptyDoc = (text?: string) => ({
@@ -49,10 +49,33 @@ const InfoBoxComponent = ({ node, updateAttributes, deleteNode, extension }: any
         e.stopPropagation();
     };
 
-    const handleFileForField = (idx: number, file: File | undefined) => {
+    const handleFileForField = async (idx: number, e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
         if (!file) return;
-        const objectUrl = URL.createObjectURL(file);
-        updateField(idx, 'value', emptyDoc(objectUrl));
+
+        try {
+            // --- CÁCH MỚI: UPLOAD LÊN SERVER ---
+            const formData = new FormData();
+            formData.append('ImageFile', file);
+
+            const res = await fetch('http://localhost:5213/api/Articles/upload-image', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                const realUrl = `http://localhost:5213${data.url}`;
+
+                // Cập nhật URL thật vào InfoBox
+                updateField(idx, 'value', emptyDoc(realUrl));
+            } else {
+                alert('Lỗi khi tải ảnh lên server!');
+            }
+        } catch (error) {
+            console.error("Upload error:", error);
+            alert('Lỗi kết nối đến Backend C#');
+        }
     };
 
     const handleDrop = (idx: number) => (e: React.DragEvent) => {
@@ -183,7 +206,7 @@ const InfoBoxComponent = ({ node, updateAttributes, deleteNode, extension }: any
                                             className="w-full h-full bg-transparent p-2.5 outline-none focus:bg-blue-50 text-gray-700 [&_p]:m-0"
                                         />
                                     </div>
-                                    
+
                                     <button onClick={() => removeField(idx)} contentEditable={false} className="absolute right-1 top-2 text-gray-400 hover:text-red-500 opacity-0 group-hover/row:opacity-100 bg-white rounded shadow-sm border border-gray-200 p-0.5"><Trash2 size={13} /></button>
                                 </>
                             )}
@@ -207,7 +230,7 @@ export const CustomInfoBox = Node.create({
     },
     addAttributes() {
         return {
-            title: { 
+            title: {
                 default: 'Tổng quan',
                 parseHTML: el => el.getAttribute('data-title') || 'Tổng quan',
                 renderHTML: attrs => ({ 'data-title': attrs.title })

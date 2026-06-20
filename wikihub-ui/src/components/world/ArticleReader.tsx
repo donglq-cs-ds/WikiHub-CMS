@@ -14,11 +14,10 @@ import { createCustomMention } from './CustomMentionExtension';
 import { CustomInfoBox } from './CustomInfoBoxExtension';
 import { CustomImage } from './CustomImageExtension';
 import { CustomTable } from './CustomTableExtension';
-import tippy from 'tippy.js';
+import tippy, { delegate } from 'tippy.js';
 import 'tippy.js/dist/tippy.css';
-
 import { ArrowLeft, Pencil } from 'lucide-react';
-
+const API_URL = import.meta.env.VITE_API_URL;
 interface Props {
     articleId: string;
     worldId: string;
@@ -56,17 +55,34 @@ export default function ArticleReader({ articleId, worldId, onBack, onEdit }: Pr
         },
     });
 
-    // Kéo dữ liệu từ DB (Cả Title và Content)
-    // ==========================================
-    // HIỆU ỨNG HOVER XEM TRƯỚC BÀI VIẾT (WIKIPEDIA STYLE)
-    // ==========================================
+    useEffect(() => {
+        if (!articleId || !editor) return;
+
+        fetch(`${API_URL}/api/Articles/${articleId}`)
+            .then(res => {
+                if (!res.ok) throw new Error('Không tìm thấy bài viết');
+                return res.json();
+            })
+            .then(data => {
+                setTitle(data.title);
+                // Bơm nội dung HTML vào Tiptap (chế độ chỉ đọc)
+                if (data.content) {
+                    editor.commands.setContent(data.content);
+                }
+            })
+            .catch(error => {
+                console.error("Lỗi khi kéo dữ liệu bài viết:", error);
+                setTitle('Lỗi: Không thể tải bài viết');
+            });
+    }, [articleId, editor]);
+
     // ========================================================================
-    // TỔNG HỢP: HOVER PREVIEW CHO CẢ MENTION VÀ LINK (WIKIPEDIA STYLE)
+    // 2. TỔNG HỢP: HOVER PREVIEW CHO CẢ MENTION VÀ LINK (WIKIPEDIA STYLE)
     // ========================================================================
     useEffect(() => {
         if (!editor) return;
 
-        const instance = tippy(editor.view.dom, {
+        const instance = delegate(editor.view.dom,{
             // Target: Gộp cả class "mention" và thẻ "a" (link)
             target: '.mention, a', 
             placement: 'top',
@@ -90,7 +106,7 @@ export default function ArticleReader({ articleId, worldId, onBack, onEdit }: Pr
                 }
 
                 try {
-                    const res = await fetch(`http://localhost:5213/api/Articles/${articleId}`);
+                    const res = await fetch(`${API_URL}/api/Articles/${articleId}`);
                     if (!res.ok) throw new Error('Not found');
                     const article = await res.json();
 
@@ -110,7 +126,7 @@ export default function ArticleReader({ articleId, worldId, onBack, onEdit }: Pr
                     }
 
                     // 3. Render giao diện thẻ Tooltip (dùng chung cho cả link và mention)
-                    const imageUrl = article.imagePath ? `http://localhost:5213${article.imagePath}` : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=100&auto=format&fit=crop';
+                    const imageUrl = article.imagePath ? `${API_URL}${article.imagePath}` : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=100&auto=format&fit=crop';
                     
                     tip.setContent(`
                         <div class="flex flex-col gap-2.5 p-1.5 w-64 text-left font-sans bg-white shadow-xl">

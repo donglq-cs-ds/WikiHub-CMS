@@ -2,23 +2,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WikiHub.Api.Data;
 using WikiHub.Api.Models;
+using WikiHub.Api.Models.DTOs;
 
 namespace WikiHub.Api.Controllers;
 
 // DTOs hứng dữ liệu từ React gửi lên
-public class CreateTemplateDto
-{
-    public Guid WorldId { get; set; }
-    public string Name { get; set; }
-    public string HtmlContent { get; set; }
-}
-
-public class UpdateTemplateDto
-{
-    public Guid Id { get; set; }
-    public string Name { get; set; }
-    public string HtmlContent { get; set; }
-}
 
 [Route("api/[controller]")]
 [ApiController]

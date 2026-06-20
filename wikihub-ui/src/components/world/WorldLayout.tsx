@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Search, ChevronDown, ChevronRight, FileText, LayoutTemplate, PanelLeftClose, PanelLeft, X, Upload, Link as LinkIcon } from 'lucide-react';
-import { getWorld } from '../../api/worldApi';
+import { Search, ChevronDown, ChevronRight, FileText, LayoutTemplate, PanelLeftClose, PanelLeft, X, Upload, Link as LinkIcon, Settings } from 'lucide-react';import { getWorld } from '../../api/worldApi';
 import type { World } from '../../types/world';
 import { getArticles, createArticle, deleteArticle } from '../../api/articleApi';
 import type { Article } from '../../api/articleApi';
@@ -46,6 +45,8 @@ export default function WorldLayout() {
     const [contextMenu, setContextMenu] = useState<{ visible: boolean; x: number; y: number; targetType: string | null }>({
         visible: false, x: 0, y: 0, targetType: null
     });
+    const currentTypeName = viewState.mode !== 'overview' && 'typeName' in viewState ? viewState.typeName : '';
+    const isOverview = viewState.mode === 'overview';
 
     useEffect(() => {
         if (worldId) {
@@ -57,12 +58,12 @@ export default function WorldLayout() {
         if (worldId) {
             getArticles({
                 worldId,
-                type: viewState.mode !== 'overview' ? viewState.typeName : undefined,
-                isOverview: viewState.mode === 'overview' ? true : undefined,
+                type: currentTypeName || undefined,
+                isOverview: isOverview ? true : undefined,
                 sortBy: activeSort
             }).then(setArticles).catch(console.error);
         }
-    }, [worldId, viewState.mode !== 'overview' ? viewState.typeName : '', activeSort, refreshTrigger]);
+    }, [worldId, currentTypeName, isOverview, activeSort, refreshTrigger]);
 
     const filteredCategories = CATEGORIES.map(cat => ({
         ...cat,

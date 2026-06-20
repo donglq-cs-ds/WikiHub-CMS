@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using WikiHub.Api.Data;
 using WikiHub.Api.DTOs;
 using WikiHub.Api.Models;
+using WikiHub.Api.Models.DTOs;
 
 namespace WikiHub.Api.Controllers;
 

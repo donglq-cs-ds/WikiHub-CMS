@@ -3,16 +3,11 @@ using Microsoft.EntityFrameworkCore;
 using WikiHub.Api.Data;
 using WikiHub.Api.DTOs;
 using WikiHub.Api.Models;
+using WikiHub.Api.Models.DTOs;
 
 namespace WikiHub.Api.Controllers;
 
 // 1. ĐƯA DTO LÊN ĐÂY, TRÁNH ĐƯỜNG CỦA CONTROLLER
-public class ArticleUpdateDto
-{
-    public Guid Id { get; set; }
-    public string Title { get; set; }
-    public string Content { get; set; }
-}
 
 // 2. TRẢ LẠI CHỦ QUYỀN VÀ ĐỊA CHỈ CHO CONTROLLER
 [Route("api/[controller]")]

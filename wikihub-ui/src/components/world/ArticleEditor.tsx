@@ -19,7 +19,7 @@ import {
     ArrowLeft, Save, Undo2, Redo2, Bold, Italic, Strikethrough, Underline as UnderlineIcon,
     Heading1, Heading2, Heading3, AlignLeft, AlignCenter, AlignRight,
     List, ListOrdered, Quote, Link2, Image as ImageIcon, Plus, LayoutTemplate, Grid,
-    Sigma, Layout, Minus, CloudCheck, Eraser, X, UploadCloud, Link as LinkIcon
+    Sigma, Layout, Minus, CloudCheck, Eraser, X, UploadCloud, Link as LinkIcon, ListTree 
 } from 'lucide-react';
 
 interface Props {
@@ -200,14 +200,14 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
 
             try {
                 // API Upload Ảnh xuống C#
-                const res = await fetch(`http://localhost:5213/api/Articles/upload-image`, {
+                const res = await fetch(`${import.meta.env.VITE_API_URL}/api/Articles/upload-image`, {
                     method: 'POST',
                     body: formData
                 });
 
                 if (res.ok) {
                     const data = await res.json();
-                    const realUrl = `http://localhost:5213${data.url}`; // Lấy URL thật Server trả về
+                    const realUrl = `${import.meta.env.VITE_API_URL}${data.url}`; // Lấy URL thật Server trả về
                     editor?.chain().focus().insertContent({ type: 'customImage', attrs: { src: realUrl } }).run();
                 } else {
                     alert('Lỗi tải ảnh lên Server!');
@@ -221,7 +221,32 @@ export default function ArticleEditor({ articleId, worldId, onBack }: Props) {
             setImageUrl('');
         }
     };
+    
+// AUTO-SAVE NGẦM (DEBOUNCE 2 GIÂY)
+    useEffect(() => {
+        if (!editor) return;
 
+        // Bắt sự kiện mỗi khi nội dung Tiptap thay đổi
+        const handleUpdate = () => {
+            // Xóa bộ đếm cũ nếu người dùng vẫn đang gõ liên tục
+            clearTimeout(window.autoSaveTimer); 
+            
+            // Đặt bộ đếm mới 2 giây
+            window.autoSaveTimer = setTimeout(() => {
+                handleSave(); // Gọi hàm lưu thật của ông
+                console.log("Đã tự động lưu ngầm!");
+            }, 2000);
+        };
+
+        editor.on('update', handleUpdate);
+
+        // Cleanup
+        return () => {
+            editor.off('update', handleUpdate);
+            clearTimeout(window.autoSaveTimer);
+        };
+    }, [editor, title, description]); // Nhớ đưa các state cần thiết vào mảng này
+    
     if (!editor) return null;
 
     return (
