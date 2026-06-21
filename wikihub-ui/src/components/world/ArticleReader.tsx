@@ -22,7 +22,8 @@ interface Props {
     articleId: string;
     worldId: string;
     onBack: () => void;
-    onEdit: () => void; // <--- Prop mới để chuyển sang màn Edit
+    onEdit: () => void;
+    onNavigate?: (articleId: string) => void;
 }
 
 export default function ArticleReader({ articleId, worldId, onBack, onEdit }: Props) {

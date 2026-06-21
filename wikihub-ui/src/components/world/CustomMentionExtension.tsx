@@ -1,10 +1,11 @@
 import Mention from '@tiptap/extension-mention';
-import { ReactRenderer } from '@tiptap/react';
+import { mergeAttributes, ReactRenderer } from '@tiptap/react';
 import tippy from 'tippy.js';
 import { forwardRef, useImperativeHandle, useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import QuickCreateMentionModal from './QuickCreateMentionModal';
 import type { Article } from '../../api/articleApi';
+import { mergeAttributes } from '@tiptap/core';
 
 // ==========================================
 // 1. GIAO DIỆN BẢNG GỢI Ý (MENTION LIST UI)
@@ -104,7 +105,18 @@ MentionList.displayName = 'MentionList';
 // ==========================================
 // Bọc thành 1 function để nhận worldId từ bên ngoài truyền vào
 export const createCustomMention = (worldId: string) => {
-  return Mention.configure({
+  return Mention.extend({
+    renderHTML({ node, HTMLAttributes }) {
+      const mergedAttrs = mergeAttributes(
+        { class: 'text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md font-semibold cursor-pointer border border-blue-100 hover:bg-blue-100 transition-colors' },
+        HTMLAttributes
+      );
+      return ['span', mergedAttrs, node.attrs.label ?? node.attrs.id ?? ''];
+    },
+    renderText({ node }) {
+      return node.attrs.label ?? node.attrs.id ?? '';
+    },
+  }).configure({
     HTMLAttributes: {
       class: 'text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md font-semibold cursor-pointer border border-blue-100 hover:bg-blue-100 transition-colors',
     },
