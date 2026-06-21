@@ -5,7 +5,6 @@ import { forwardRef, useImperativeHandle, useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import QuickCreateMentionModal from './QuickCreateMentionModal';
 import type { Article } from '../../api/articleApi';
-import { mergeAttributes } from '@tiptap/core';
 
 // ==========================================
 // 1. GIAO DIỆN BẢNG GỢI Ý (MENTION LIST UI)

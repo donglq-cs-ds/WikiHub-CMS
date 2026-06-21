@@ -26,8 +26,8 @@ interface Props {
     onNavigate?: (articleId: string) => void;
 }
 
-export default function ArticleReader({ articleId, worldId, onBack, onEdit }: Props) {
-    const [title, setTitle] = useState('Đang tải dữ liệu...');
+export default function ArticleReader({ articleId, worldId, onBack, onEdit, onNavigate }: Props) {
+     const [title, setTitle] = useState('Đang tải dữ liệu...');
 
     // STATE CHO MỤC LỤC (TOC)
     const [isTocOpen, setIsTocOpen] = useState(false);
@@ -220,6 +220,24 @@ export default function ArticleReader({ articleId, worldId, onBack, onEdit }: Pr
             container.removeEventListener('mouseover', handleMouseOver);
         };
     }, [articleId, editor]);
+    useEffect(() => {
+        if (!editor || !onNavigate) return;
+        const container = editor.view.dom;
+
+        const handleClick = (e: MouseEvent) => {
+            const target = (e.target as HTMLElement).closest('span[data-type="mention"]') as HTMLElement | null;
+            if (!target) return;
+            const mentionId = target.getAttribute('data-id');
+            if (mentionId) {
+                e.preventDefault();
+                e.stopPropagation();
+                onNavigate(mentionId);
+            }
+        };
+
+        container.addEventListener('click', handleClick);
+        return () => container.removeEventListener('click', handleClick);
+    }, [editor, onNavigate]);
 
     if (!editor) return null;
 

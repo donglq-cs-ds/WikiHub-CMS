@@ -8,7 +8,7 @@ import ArticleManager from './ArticleManager';
 import ArticleReader from './ArticleReader';
 import ArticleEditor from './ArticleEditor';
 import TemplateManager from './TemplateManager';
-import {useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 import { CATEGORIES } from '../../constants/entityTypes';
 
@@ -286,6 +286,15 @@ export default function WorldLayout() {
                                 worldId={worldId || ''}
                                 onBack={() => { }}
                                 onEdit={() => setViewState({ mode: 'edit', typeName: 'Tổng quan', articleId: articles[0].id })}
+                                onNavigate={async (id) => {
+                                    try {
+                                        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/Articles/${id}`);
+                                        const art = await res.json();
+                                        setViewState({ mode: 'read', typeName: art.type || '', articleId: id });
+                                    } catch {
+                                        setViewState({ mode: 'read', typeName: '', articleId: id });
+                                    }
+                                }}
                             />
                         ) : (
                             <div className="flex flex-col items-center justify-center py-20 text-gray-400 border-2 border-dashed border-gray-200 bg-gray-50 rounded-2xl">
@@ -329,6 +338,15 @@ export default function WorldLayout() {
                             worldId={worldId || ''}
                             onBack={() => setViewState({ mode: 'list', typeName: viewState.typeName })}
                             onEdit={() => setViewState({ mode: 'edit', typeName: viewState.typeName, articleId: viewState.articleId })}
+                            onNavigate={async (id) => {
+                                try {
+                                    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/Articles/${id}`);
+                                    const art = await res.json();
+                                    setViewState({ mode: 'read', typeName: art.type || '', articleId: id });
+                                } catch {
+                                    setViewState({ mode: 'read', typeName: '', articleId: id });
+                                }
+                            }}
                         />
                     )}
 
