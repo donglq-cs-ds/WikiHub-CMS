@@ -112,83 +112,113 @@ export default function ArticleReader({ articleId, worldId, onBack, onEdit }: Pr
     // 2. TỔNG HỢP: HOVER PREVIEW CHO CẢ MENTION VÀ LINK (WIKIPEDIA STYLE)
     // ========================================================================
     useEffect(() => {
-    if (!editor) return;
+        if (!editor) return;
 
-    const container = editor.view.dom;
-    let currentTip: any = null;
+        const container = editor.view.dom;
+        let currentTip: any = null;
 
-    const handleMouseOver = async (e: MouseEvent) => {
-        const target = (e.target as HTMLElement).closest('.mention, a[href]') as HTMLElement | null;
-        if (!target) return;
+        const escapeHtml = (str: string) =>
+            String(str).replace(/[&<>"']/g, (c) => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            } as Record<string, string>)[c]);
 
-        // Nếu đã có tip cho đúng element này rồi thì bỏ qua
-        if (currentTip?._tippy?.reference === target) return;
-        currentTip?._tippy?.destroy();
+        const handleMouseOver = async (e: MouseEvent) => {
+            const target = (e.target as HTMLElement).closest('span[data-type="mention"], a[href]') as HTMLElement | null;
+            if (!target) return;
 
-        const href = target.getAttribute('href');
-        const mentionId = target.getAttribute('data-id');
-        const articleId = mentionId || (href?.includes('/articles/') ? href.split('/articles/')[1] : null);
+            if (currentTip?._tippy?.reference === target) return;
+            currentTip?._tippy?.destroy();
 
-        if (!articleId) return;
+            const href = target.getAttribute('href');
+            const mentionId = target.getAttribute('data-id');
+            const articleId = mentionId || (href?.includes('/articles/') ? href.split('/articles/')[1] : null);
 
-        const tip = tippy(target, {
-            placement: 'top',
-            interactive: true,
-            allowHTML: true,
-            delay: [300, 100],
-            theme: 'light-border',
-            content: '<div style="padding:8px; font-size:12px; color:#9ca3af;">Đang tải...</div>',
-            onShow: async (instance) => {
-                try {
-                    const res = await fetch(`${API_URL}/api/Articles/${articleId}`);
-                    if (!res.ok) throw new Error('Not found');
-                    const article = await res.json();
+            // TRƯỜNG HỢP 1: Mention hoặc link trỏ tới bài viết nội bộ -> preview từ DB của mình
+            if (articleId) {
+                const tip = tippy(target, {
+                    placement: 'top', interactive: true, allowHTML: true, delay: [300, 100], theme: 'light-border',
+                    content: '<div style="padding:8px; font-size:12px; color:#9ca3af;">Đang tải...</div>',
+                    onShow: async (instance) => {
+                        try {
+                            const res = await fetch(`${API_URL}/api/Articles/${articleId}`);
+                            if (!res.ok) throw new Error('Not found');
+                            const article = await res.json();
 
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(article.content || '', 'text/html');
+                            const parser = new DOMParser();
+                            const doc = parser.parseFromString(article.content || '', 'text/html');
+                            let moTaSnippet = article.description || 'Chưa có mô tả ngắn.';
+                            const h2Tags = Array.from(doc.querySelectorAll('h2'));
+                            const moTaH2 = h2Tags.find(h => h.textContent?.toLowerCase().includes('mô tả'));
+                            if (moTaH2 && moTaH2.nextElementSibling?.tagName === 'P') {
+                                const fullText = moTaH2.nextElementSibling.textContent || '';
+                                moTaSnippet = fullText.length > 150 ? fullText.substring(0, 150) + '...' : fullText;
+                            }
 
-                    let moTaSnippet = article.description || 'Chưa có mô tả ngắn.';
-                    const h2Tags = Array.from(doc.querySelectorAll('h2'));
-                    const moTaH2 = h2Tags.find(h => h.textContent?.toLowerCase().includes('mô tả'));
-                    if (moTaH2 && moTaH2.nextElementSibling?.tagName === 'P') {
-                        const fullText = moTaH2.nextElementSibling.textContent || '';
-                        moTaSnippet = fullText.length > 150 ? fullText.substring(0, 150) + '...' : fullText;
-                    }
+                            const imageUrl = article.imagePath
+                                ? `${API_URL}${article.imagePath}`
+                                : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=100&auto=format&fit=crop';
 
-                    const imageUrl = article.imagePath
-                        ? `${API_URL}${article.imagePath}`
-                        : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=100&auto=format&fit=crop';
-
-                    instance.setContent(`
+                            instance.setContent(`
                         <div style="display:flex; flex-direction:column; gap:10px; padding:6px; width:256px; font-family:sans-serif;">
                             <div style="display:flex; align-items:flex-start; gap:12px;">
                                 <img src="${imageUrl}" style="width:48px; height:48px; object-fit:cover; border-radius:8px; border:1px solid #e5e7eb; flex-shrink:0;" />
                                 <div style="flex:1; min-width:0; padding-top:2px;">
-                                    <div style="font-weight:700; font-size:14px; color:#111827; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${article.title}</div>
-                                    <div style="font-size:10px; color:#2563eb; font-weight:600; margin-top:4px; background:#eff6ff; display:inline-block; padding:2px 8px; border-radius:4px;">${article.type}</div>
+                                    <div style="font-weight:700; font-size:14px; color:#111827; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(article.title)}</div>
+                                    <div style="font-size:10px; color:#2563eb; font-weight:600; margin-top:4px; background:#eff6ff; display:inline-block; padding:2px 8px; border-radius:4px;">${escapeHtml(article.type)}</div>
                                 </div>
                             </div>
                             <div style="font-size:12px; color:#4b5563; line-height:1.6; border-top:1px solid #f3f4f6; padding-top:10px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;">
-                                ${moTaSnippet}
+                                ${escapeHtml(moTaSnippet)}
                             </div>
                         </div>
                     `);
-                } catch {
-                    instance.setContent('<div style="font-size:12px; color:#ef4444; padding:8px; font-weight:600;">Không tìm thấy bài viết!</div>');
-                }
-            },
-        });
+                        } catch {
+                            instance.setContent('<div style="font-size:12px; color:#ef4444; padding:8px; font-weight:600;">Không tìm thấy bài viết!</div>');
+                        }
+                    },
+                });
+                currentTip = target;
+                (tip as any).show();
+                return;
+            }
 
-        currentTip = target;
-        (tip as any).show();
-    };
+            // TRƯỜNG HỢP 2: Link ngoài (http/https bất kỳ) -> preview kiểu Open Graph qua BE proxy
+            if (href && /^https?:\/\//i.test(href)) {
+                const tip = tippy(target, {
+                    placement: 'top', interactive: true, allowHTML: true, delay: [300, 100], theme: 'light-border',
+                    content: '<div style="padding:8px; font-size:12px; color:#9ca3af;">Đang tải...</div>',
+                    onShow: async (instance) => {
+                        try {
+                            const res = await fetch(`${API_URL}/api/LinkPreview?url=${encodeURIComponent(href)}`);
+                            if (!res.ok) throw new Error('Not found');
+                            const data = await res.json();
 
-    container.addEventListener('mouseover', handleMouseOver);
+                            instance.setContent(`
+                        <div style="display:flex; flex-direction:column; gap:8px; padding:6px; width:256px; font-family:sans-serif;">
+                            ${data.image ? `<img src="${escapeHtml(data.image)}" style="width:100%; height:120px; object-fit:cover; border-radius:8px; border:1px solid #e5e7eb;" />` : ''}
+                            <div>
+                                <div style="font-weight:700; font-size:13px; color:#111827; line-height:1.4;">${escapeHtml(data.title || href)}</div>
+                                <div style="font-size:10px; color:#9ca3af; margin-top:2px;">${escapeHtml(data.siteName || '')}</div>
+                            </div>
+                            ${data.description ? `<div style="font-size:11px; color:#4b5563; line-height:1.5; border-top:1px solid #f3f4f6; padding-top:8px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${escapeHtml(data.description)}</div>` : ''}
+                        </div>
+                    `);
+                        } catch {
+                            instance.setContent('<div style="font-size:12px; color:#9ca3af; padding:8px;">Không lấy được preview cho link này.</div>');
+                        }
+                    },
+                });
+                currentTip = target;
+                (tip as any).show();
+            }
+        };
 
-    return () => {
-        container.removeEventListener('mouseover', handleMouseOver);
-    };
-}, [articleId, editor]);
+        container.addEventListener('mouseover', handleMouseOver);
+
+        return () => {
+            container.removeEventListener('mouseover', handleMouseOver);
+        };
+    }, [articleId, editor]);
 
     if (!editor) return null;
 

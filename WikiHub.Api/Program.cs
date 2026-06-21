@@ -23,6 +23,9 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient("LinkPreview");
+
 var app = builder.Build();
 
 app.UseCors("AllowReactApp");
