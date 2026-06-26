@@ -8,6 +8,8 @@ import ArticleManager from './ArticleManager';
 import ArticleReader from './ArticleReader';
 import ArticleEditor from './ArticleEditor';
 import TemplateManager from './TemplateManager';
+import MapSidebar from './map/MapSidebar';
+import WorldMapView from './map/WorldMapView';
 import { useNavigate } from 'react-router-dom';
 
 import { CATEGORIES } from '../../constants/entityTypes';
@@ -72,6 +74,7 @@ export default function WorldLayout() {
         | { mode: 'edit', typeName: string, articleId: string }
         | { mode: 'templates' }
         | { mode: 'editTemplate', templateId: string };
+        | { mode: 'map', mapId: string }
     const [viewState, setViewState] = useState<ViewState>({ mode: 'overview' });
     const [articles, setArticles] = useState<Article[]>([]);
     const [activeSort, setActiveSort] = useState('CreatedAt');
@@ -208,6 +211,13 @@ export default function WorldLayout() {
                                 )}
                             </div>
                         ))}
+                        <div className="border-t border-gray-200 pt-2 mt-2">
+                            <MapSidebar
+                                worldId={worldId || ''}
+                                activeMapId={viewState.mode === 'map' ? viewState.mapId : null}
+                                onSelectMap={(mapId) => setViewState({ mode: 'map', mapId })}
+                            />
+                        </div>
                     </div>
                 </div>
             </aside>
@@ -380,6 +390,16 @@ export default function WorldLayout() {
                             worldId={worldId || ''}
                             isTemplate={true}
                             onBack={() => setViewState({ mode: 'templates' })}
+                        />
+                    )}
+                    {/* BẢN ĐỒ */}
+                    {viewState.mode === 'map' && (
+                        <WorldMapView
+                            mapId={viewState.mapId}
+                            worldId={worldId || ''}
+                            onNavigateArticle={async (articleId, type) => {
+                                setViewState({ mode: 'read', typeName: type, articleId });
+                            }}
                         />
                     )}
                 </div>
